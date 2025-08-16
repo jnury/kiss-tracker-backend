@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: kiss-tracker-back
+    name: kiss-tracker-backend
     env: node
     plan: free
     buildCommand: npm install
@@ -9,4 +9,4 @@ services:
       - key: NODE_ENV
         value: production
       - key: FRONTEND_URL
-        value: https://kiss-tracker-front.onrender.com
+        value: https://kiss-tracker-frontend.onrender.com
