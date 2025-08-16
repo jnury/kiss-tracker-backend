@@ -3,7 +3,7 @@ services:
     name: kiss-tracker-back
     env: node
     plan: free
-    buildCommand: yarn install
+    buildCommand: npm install
     startCommand: npm start
     envVars:
       - key: NODE_ENV

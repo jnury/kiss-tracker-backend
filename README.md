@@ -41,15 +41,15 @@ Node.js + Express backend for romantic package tracking with secure authenticati
 ## Development
 
 ```bash
-yarn install
-yarn dev
+npm install
+npm run dev
 ```
 
 ## Production
 
 ```bash
-yarn install
-yarn start
+npm install
+npm start
 ```
 
 ## Database
@@ -74,6 +74,6 @@ yarn start
 ## Deployment
 
 - **Platform**: Render.com with Node.js environment
-- **Build**: `yarn install` for fast, reliable dependency management
+- **Build**: `npm install` for dependency management
 - **Start**: `npm start` using package.json scripts
 - **Auto-deploy** on git push
