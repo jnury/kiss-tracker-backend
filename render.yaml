@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: kiss-tracker-back
+    env: node
+    plan: free
+    buildCommand: yarn install
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: FRONTEND_URL
+        value: https://kiss-tracker-front.onrender.com
