@@ -1,7 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const { v4: uuidv4 } = require('uuid');
-const db = require('./database');
+const db = require('./db_loader');
 require('dotenv').config();
 
 const app = express();
@@ -55,26 +55,31 @@ function generateUpdateLink(req, trackingNumber, updateKey) {
 }
 
 // Middleware to verify update key
-function verifyUpdateKey(req, res, next) {
-  const { trackingNumber } = req.params;
-  const updateKey = req.query.key || req.body.updateKey;
+async function verifyUpdateKey(req, res, next) {
+  try {
+    const { trackingNumber } = req.params;
+    const updateKey = req.query.key || req.body.updateKey;
 
-  console.log('Verifying update key for:', trackingNumber);
-  console.log('Provided key:', updateKey);
+    console.log('Verifying update key for:', trackingNumber);
+    console.log('Provided key:', updateKey);
 
-  if (!updateKey) {
-    console.log('❌ No update key provided');
-    return res.status(401).json({ error: 'Update key required for this operation' });
+    if (!updateKey) {
+      console.log('❌ No update key provided');
+      return res.status(401).json({ error: 'Update key required for this operation' });
+    }
+
+    const isValid = await db.verifyUpdateKey(trackingNumber, updateKey);
+    if (!isValid) {
+      console.log('❌ Invalid update key');
+      return res.status(403).json({ error: 'Invalid update key' });
+    }
+
+    console.log('✅ Update key verified');
+    next();
+  } catch (err) {
+    console.error('Error in verifyUpdateKey middleware:', err);
+    return res.status(500).json({ error: 'Internal server error' });
   }
-
-  const isValid = db.verifyUpdateKey(trackingNumber, updateKey);
-  if (!isValid) {
-    console.log('❌ Invalid update key');
-    return res.status(403).json({ error: 'Invalid update key' });
-  }
-
-  console.log('✅ Update key verified');
-  next();
 }
 
 // Routes
@@ -83,7 +88,7 @@ app.get('/', (req, res) => {
 });
 
 // Create new tracking
-app.post('/api/tracking', (req, res) => {
+app.post('/api/tracking', async (req, res) => {
   try {
     console.log('=== CREATE TRACKING REQUEST ===');
     console.log('Request body:', JSON.stringify(req.body, null, 2));
@@ -119,8 +124,8 @@ app.post('/api/tracking', (req, res) => {
     }
 
     // Save to database
-    const trackingId = db.createTracking(trackingNumber, kissProvider, destination, etaDate.toISOString(), updateKey);
-    console.log('Created tracking with ID:', trackingId);
+  const trackingId = await db.createTracking(trackingNumber, kissProvider, destination, etaDate.toISOString(), updateKey);
+  console.log('Created tracking with ID:', trackingId);
 
     const response = {
       trackingNumber: trackingNumber,
@@ -143,12 +148,12 @@ app.post('/api/tracking', (req, res) => {
 });
 
 // Get tracking info for update page (requires authentication)
-app.get('/api/tracking/:trackingNumber/update', verifyUpdateKey, (req, res) => {
+app.get('/api/tracking/:trackingNumber/update', verifyUpdateKey, async (req, res) => {
   try {
     const { trackingNumber } = req.params;
     console.log('Getting tracking for update page:', trackingNumber);
     
-    const trackingWithRecords = db.getTrackingWithRecords(trackingNumber);
+  const trackingWithRecords = await db.getTrackingWithRecords(trackingNumber);
 
     if (!trackingWithRecords) {
       return res.status(404).json({ error: 'Tracking number not found' });
@@ -181,12 +186,12 @@ app.get('/api/tracking/:trackingNumber/update', verifyUpdateKey, (req, res) => {
 });
 
 // Get tracking info (public - no authentication required)
-app.get('/api/tracking/:trackingNumber', (req, res) => {
+app.get('/api/tracking/:trackingNumber', async (req, res) => {
   try {
     const { trackingNumber } = req.params;
     console.log('Getting tracking for:', trackingNumber);
     
-    const trackingWithRecords = db.getTrackingWithRecords(trackingNumber);
+  const trackingWithRecords = await db.getTrackingWithRecords(trackingNumber);
 
     if (!trackingWithRecords) {
       return res.status(404).json({ error: 'Tracking number not found' });
@@ -216,7 +221,7 @@ app.get('/api/tracking/:trackingNumber', (req, res) => {
 });
 
 // Add location update (requires authentication)
-app.post('/api/tracking/:trackingNumber/location', verifyUpdateKey, (req, res) => {
+app.post('/api/tracking/:trackingNumber/location', verifyUpdateKey, async (req, res) => {
   try {
     const { trackingNumber } = req.params;
     const { location } = req.body;
@@ -227,13 +232,13 @@ app.post('/api/tracking/:trackingNumber/location', verifyUpdateKey, (req, res) =
       return res.status(400).json({ error: 'Location is required' });
     }
 
-    const tracking = db.getTracking(trackingNumber);
+  const tracking = await db.getTracking(trackingNumber);
     if (!tracking) {
       return res.status(404).json({ error: 'Tracking number not found' });
     }
 
-    const recordId = db.addTrackRecord(tracking.id, trackingNumber, location);
-    console.log('✅ Added track record with ID:', recordId);
+  const recordId = await db.addTrackRecord(tracking.id, trackingNumber, location);
+  console.log('✅ Added track record with ID:', recordId);
 
     res.json({
       message: 'Location updated successfully',
@@ -246,7 +251,7 @@ app.post('/api/tracking/:trackingNumber/location', verifyUpdateKey, (req, res) =
 });
 
 // Update ETA (requires authentication)
-app.put('/api/tracking/:trackingNumber/eta', verifyUpdateKey, (req, res) => {
+app.put('/api/tracking/:trackingNumber/eta', verifyUpdateKey, async (req, res) => {
   try {
     const { trackingNumber } = req.params;
     const { eta } = req.body;
@@ -262,7 +267,7 @@ app.put('/api/tracking/:trackingNumber/eta', verifyUpdateKey, (req, res) => {
       return res.status(400).json({ error: 'Invalid ETA format' });
     }
 
-    const success = db.updateEta(trackingNumber, etaDate.toISOString());
+    const success = await db.updateEta(trackingNumber, etaDate.toISOString());
     if (!success) {
       return res.status(404).json({ error: 'Tracking number not found' });
     }

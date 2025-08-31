@@ -10,3 +10,14 @@ services:
         value: production
       - key: FRONTEND_URL
         value: https://kiss-tracker.com
+      - key: DATABASE_URL
+        fromDatabase:
+          name: kiss-tracker-postgres
+          property: connectionString
+
+databases:
+  - name: kiss-tracker-postgres
+    plan: starter
+    region: oregon
+    databaseName: kiss_tracker
+    user: kiss_tracker
