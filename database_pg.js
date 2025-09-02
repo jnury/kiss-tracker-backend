@@ -25,10 +25,17 @@ const init = async () => {
         kiss_provider TEXT NOT NULL,
         destination TEXT NOT NULL,
         eta TIMESTAMP WITH TIME ZONE NOT NULL,
+        status TEXT NOT NULL DEFAULT 'Preparing',
         update_key TEXT NOT NULL,
         created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
         updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now()
       );
+    `);
+
+    // Add status column to existing trackings if it doesn't exist
+    await client.query(`
+      ALTER TABLE trackings 
+      ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'Preparing';
     `);
 
     await client.query(`
@@ -68,9 +75,9 @@ const database = {
     const client = await pool.connect();
     try {
       const res = await client.query(
-        `INSERT INTO trackings (id, tracking_number, kiss_provider, destination, eta, update_key, created_at, updated_at)
-         VALUES ($1,$2,$3,$4,$5,$6, now(), now()) RETURNING id`,
-        [id, trackingNumber, kissProvider, destination, eta, updateKey]
+        `INSERT INTO trackings (id, tracking_number, kiss_provider, destination, eta, status, update_key, created_at, updated_at)
+         VALUES ($1,$2,$3,$4,$5,$6,$7, now(), now()) RETURNING id`,
+        [id, trackingNumber, kissProvider, destination, eta, 'Preparing', updateKey]
       );
       return res.rows[0].id;
     } finally {
@@ -94,6 +101,19 @@ const database = {
       const res = await client.query(
         'UPDATE trackings SET eta = $1, updated_at = now() WHERE tracking_number = $2 RETURNING id',
         [newEta, trackingNumber]
+      );
+      return res.rowCount > 0;
+    } finally {
+      client.release();
+    }
+  },
+
+  updateStatus: async (trackingNumber, newStatus) => {
+    const client = await pool.connect();
+    try {
+      const res = await client.query(
+        'UPDATE trackings SET status = $1, updated_at = now() WHERE tracking_number = $2 RETURNING id',
+        [newStatus, trackingNumber]
       );
       return res.rowCount > 0;
     } finally {
@@ -153,6 +173,8 @@ const database = {
   _pool: pool,
   init
 };
+
+module.exports = database;
 
 // Note: Initialization will be handled by db_loader.js to prevent duplicate calls
 

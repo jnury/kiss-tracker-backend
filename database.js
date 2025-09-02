@@ -64,6 +64,7 @@ const database = {
         kiss_provider: kissProvider,
         destination,
         eta,
+        status: 'Preparing',
         update_key: updateKey,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
@@ -105,6 +106,25 @@ const database = {
       return writeJSONFile(TRACKING_FILE, trackings);
     } catch (error) {
       console.error('Error updating ETA:', error);
+      throw error;
+    }
+  },
+
+  // Update status
+  updateStatus: (trackingNumber, newStatus) => {
+    try {
+      const trackings = readJSONFile(TRACKING_FILE);
+      
+      if (!trackings[trackingNumber]) {
+        return false;
+      }
+      
+      trackings[trackingNumber].status = newStatus;
+      trackings[trackingNumber].updated_at = new Date().toISOString();
+      
+      return writeJSONFile(TRACKING_FILE, trackings);
+    } catch (error) {
+      console.error('Error updating status:', error);
       throw error;
     }
   },
@@ -195,6 +215,7 @@ module.exports = {
   createTracking: database.createTracking,
   getTracking: database.getTracking,
   updateEta: database.updateEta,
+  updateStatus: database.updateStatus,
   addTrackRecord: database.addTrackRecord,
   getTrackRecords: database.getTrackRecords,
   getTrackingWithRecords: database.getTrackingWithRecords,

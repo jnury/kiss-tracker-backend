@@ -4,6 +4,9 @@ const { v4: uuidv4 } = require('uuid');
 const db = require('./db_loader');
 require('dotenv').config();
 
+// SSE client management
+const sseClients = new Map(); // trackingNumber -> Set of response objects
+
 const app = express();
 const PORT = process.env.PORT || 8000;
 
@@ -82,9 +85,87 @@ async function verifyUpdateKey(req, res, next) {
   }
 }
 
+// SSE broadcast function
+function broadcastToTracking(trackingNumber, eventType, data) {
+  const clients = sseClients.get(trackingNumber);
+  if (clients) {
+    const message = `event: ${eventType}\ndata: ${JSON.stringify(data)}\n\n`;
+    
+    // Remove closed connections while broadcasting
+    const activeClients = new Set();
+    clients.forEach(res => {
+      if (!res.headersSent || res.writable) {
+        try {
+          res.write(message);
+          activeClients.add(res);
+        } catch (err) {
+          console.log('SSE client disconnected');
+        }
+      }
+    });
+    
+    // Update active clients list
+    if (activeClients.size > 0) {
+      sseClients.set(trackingNumber, activeClients);
+    } else {
+      sseClients.delete(trackingNumber);
+    }
+    
+    console.log(`📡 Broadcasted ${eventType} to ${activeClients.size} clients for ${trackingNumber}`);
+  }
+}
+
 // Routes
 app.get('/', (req, res) => {
   res.json({ message: '😘 Kiss Tracker API is running' });
+});
+
+// SSE endpoint for real-time tracking updates
+app.get('/api/tracking/:trackingNumber/events', async (req, res) => {
+  const { trackingNumber } = req.params;
+  
+  console.log(`📡 SSE client connecting for tracking: ${trackingNumber}`);
+  
+  // Set SSE headers
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    'Connection': 'keep-alive',
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Headers': 'Cache-Control'
+  });
+  
+  // Add client to tracking group
+  if (!sseClients.has(trackingNumber)) {
+    sseClients.set(trackingNumber, new Set());
+  }
+  sseClients.get(trackingNumber).add(res);
+  
+  // Send initial connection confirmation
+  res.write(`event: connected\ndata: ${JSON.stringify({ trackingNumber })}\n\n`);
+  
+  // Handle client disconnect
+  req.on('close', () => {
+    console.log(`📡 SSE client disconnected from tracking: ${trackingNumber}`);
+    const clients = sseClients.get(trackingNumber);
+    if (clients) {
+      clients.delete(res);
+      if (clients.size === 0) {
+        sseClients.delete(trackingNumber);
+      }
+    }
+  });
+  
+  // Keep connection alive with periodic heartbeat
+  const heartbeat = setInterval(() => {
+    if (res.writable) {
+      res.write(`event: heartbeat\ndata: ${Date.now()}\n\n`);
+    } else {
+      clearInterval(heartbeat);
+    }
+  }, 30000); // 30 seconds
+  
+  req.on('close', () => clearInterval(heartbeat));
 });
 
 // Create new tracking
@@ -240,6 +321,13 @@ app.post('/api/tracking/:trackingNumber/location', verifyUpdateKey, async (req, 
   const recordId = await db.addTrackRecord(tracking.id, trackingNumber, location);
   console.log('✅ Added track record with ID:', recordId);
 
+    // Broadcast location update to SSE clients
+    broadcastToTracking(trackingNumber, 'location-update', {
+      location,
+      timestamp: new Date().toISOString(),
+      recordId
+    });
+
     res.json({
       message: 'Location updated successfully',
       record_id: recordId
@@ -272,10 +360,50 @@ app.put('/api/tracking/:trackingNumber/eta', verifyUpdateKey, async (req, res) =
       return res.status(404).json({ error: 'Tracking number not found' });
     }
 
+    // Broadcast ETA update to SSE clients
+    broadcastToTracking(trackingNumber, 'eta-change', {
+      eta: etaDate.toISOString()
+    });
+
     console.log('✅ Updated ETA successfully');
     res.json({ message: 'ETA updated successfully' });
   } catch (error) {
     console.error('Error updating ETA:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Update status (requires authentication)
+app.put('/api/tracking/:trackingNumber/status', verifyUpdateKey, async (req, res) => {
+  try {
+    const { trackingNumber } = req.params;
+    const { status } = req.body;
+
+    console.log('Updating status:', { trackingNumber, status });
+
+    if (!status) {
+      return res.status(400).json({ error: 'Status is required' });
+    }
+
+    const validStatuses = ['Preparing', 'In Transit', 'Out for Delivery', 'Delivered', 'Delayed'];
+    if (!validStatuses.includes(status)) {
+      return res.status(400).json({ error: 'Invalid status value' });
+    }
+
+    const success = await db.updateStatus(trackingNumber, status);
+    if (!success) {
+      return res.status(404).json({ error: 'Tracking number not found' });
+    }
+
+    // Broadcast status update to SSE clients
+    broadcastToTracking(trackingNumber, 'status-change', {
+      status
+    });
+
+    console.log('✅ Updated status successfully');
+    res.json({ message: 'Status updated successfully' });
+  } catch (error) {
+    console.error('Error updating status:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

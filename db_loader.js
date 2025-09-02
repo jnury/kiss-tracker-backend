@@ -27,7 +27,6 @@ const initializeDatabase = async () => {
   // Fallback to JSON database
   db = require('./database');
   dbType = 'json';
-  console.log('📁 Using JSON file storage');
 };
 
 // Initialize immediately and export a promise
@@ -58,16 +57,31 @@ const getDatabaseInfo = async () => {
   };
 };
 
+// Create wrapped functions that will use the db after initialization
+const createWrappedFunction = (methodName) => {
+  return async (...args) => {
+    await dbPromise;
+    if (!db || !db[methodName]) {
+      throw new Error(`Database method ${methodName} not available`);
+    }
+    const fn = db[methodName];
+    const res = fn(...args);
+    if (res && typeof res.then === 'function') return res;
+    return Promise.resolve(res);
+  };
+};
+
 module.exports = {
-  createTracking: wrapIfSync(db?.createTracking),
-  getTracking: wrapIfSync(db?.getTracking),
-  updateEta: wrapIfSync(db?.updateEta),
-  addTrackRecord: wrapIfSync(db?.addTrackRecord),
-  getTrackRecords: wrapIfSync(db?.getTrackRecords),
-  getTrackingWithRecords: wrapIfSync(db?.getTrackingWithRecords),
-  verifyUpdateKey: wrapIfSync(db?.verifyUpdateKey),
-  getAllTrackings: wrapIfSync(db?.getAllTrackings),
+  createTracking: createWrappedFunction('createTracking'),
+  getTracking: createWrappedFunction('getTracking'),
+  updateEta: createWrappedFunction('updateEta'),
+  updateStatus: createWrappedFunction('updateStatus'),
+  addTrackRecord: createWrappedFunction('addTrackRecord'),
+  getTrackRecords: createWrappedFunction('getTrackRecords'),
+  getTrackingWithRecords: createWrappedFunction('getTrackingWithRecords'),
+  verifyUpdateKey: createWrappedFunction('verifyUpdateKey'),
+  getAllTrackings: createWrappedFunction('getAllTrackings'),
   getDatabaseInfo,
   // expose underlying pool when available
-  _raw: db
+  get _raw() { return db; }
 };
