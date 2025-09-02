@@ -9,7 +9,10 @@ if (!connectionString) {
 const pool = new Pool({ connectionString, ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false });
 
 // Initialize schema: trackings and track_records
+let initialized = false;
 const init = async () => {
+  if (initialized) return; // Prevent double initialization
+  
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
@@ -39,10 +42,11 @@ const init = async () => {
     `);
 
     await client.query('COMMIT');
-    console.log('✅ Postgres schema initialized');
+    initialized = true;
+    console.log('✅ PostgreSQL schema initialized');
   } catch (err) {
     await client.query('ROLLBACK');
-    console.error('Error initializing Postgres schema:', err);
+    console.error('Error initializing PostgreSQL schema:', err);
     throw err;
   } finally {
     client.release();
@@ -150,7 +154,6 @@ const database = {
   init
 };
 
-// Initialize on require
-init().catch(err => console.error('Postgres init failed:', err));
+// Note: Initialization will be handled by db_loader.js to prevent duplicate calls
 
 module.exports = database;

@@ -26,7 +26,7 @@ const initializeDatabase = () => {
     console.log('📄 Created track_records.json');
   }
   
-  console.log('✅ Database files initialized');
+  console.log('✅ JSON database files initialized');
 };
 
 // Read JSON file safely

@@ -291,8 +291,18 @@ app.use((req, res) => {
   res.status(404).json({ error: 'Route not found' });
 });
 
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
   console.log(`😘 Kiss Tracker API running on port ${PORT}`);
-  console.log(`JSON database: ./data/ folder`);
+  
+  // Show database status
+  try {
+    const dbInfo = await db.getDatabaseInfo();
+    const dbIcon = dbInfo.type === 'postgresql' ? '🐘' : '📁';
+    const dbName = dbInfo.type === 'postgresql' ? 'PostgreSQL' : 'JSON files (./data/)';
+    console.log(`${dbIcon} Database: ${dbName}`);
+  } catch (err) {
+    console.warn('⚠️  Could not determine database status:', err.message);
+  }
+  
   console.log(`API docs available at http://localhost:${PORT}`);
 });
