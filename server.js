@@ -193,8 +193,8 @@ app.post('/api/tracking', async (req, res) => {
     const shareLink = generateShareLink(req, trackingNumber);
     const updateLink = generateUpdateLink(req, trackingNumber, updateKey);
     
-    // Parse ETA
-    console.log('Parsing ETA:', eta);
+    // Validate ETA is a valid ISO string
+    console.log('Validating ETA:', eta);
     const etaDate = new Date(eta);
     console.log('Parsed ETA date:', etaDate);
     console.log('Is valid date:', !isNaN(etaDate.getTime()));
@@ -204,8 +204,8 @@ app.post('/api/tracking', async (req, res) => {
       return res.status(400).json({ error: 'Invalid ETA format' });
     }
 
-    // Save to database
-  const trackingId = await db.createTracking(trackingNumber, kissProvider, destination, etaDate.toISOString(), updateKey);
+    // Save to database (eta is already UTC ISO string)
+  const trackingId = await db.createTracking(trackingNumber, kissProvider, destination, eta, updateKey);
   console.log('Created tracking with ID:', trackingId);
 
     const response = {
@@ -355,14 +355,14 @@ app.put('/api/tracking/:trackingNumber/eta', verifyUpdateKey, async (req, res) =
       return res.status(400).json({ error: 'Invalid ETA format' });
     }
 
-    const success = await db.updateEta(trackingNumber, etaDate.toISOString());
+    const success = await db.updateEta(trackingNumber, eta);
     if (!success) {
       return res.status(404).json({ error: 'Tracking number not found' });
     }
 
     // Broadcast ETA update to SSE clients
     broadcastToTracking(trackingNumber, 'eta-change', {
-      eta: etaDate.toISOString()
+      eta: eta
     });
 
     console.log('✅ Updated ETA successfully');
