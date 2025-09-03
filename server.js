@@ -249,6 +249,7 @@ app.get('/api/tracking/:trackingNumber/update', verifyUpdateKey, async (req, res
       kissProvider: trackingWithRecords.kiss_provider,
       destination: trackingWithRecords.destination,
       eta: trackingWithRecords.eta,
+      status: trackingWithRecords.status,
       shareLink: shareLink,
       updateLink: updateLink,
       trackRecords: trackingWithRecords.records.map(record => ({
@@ -285,6 +286,7 @@ app.get('/api/tracking/:trackingNumber', async (req, res) => {
       kissProvider: trackingWithRecords.kiss_provider,
       destination: trackingWithRecords.destination,
       eta: trackingWithRecords.eta,
+      status: trackingWithRecords.status,
       shareLink: shareLink,
       trackRecords: trackingWithRecords.records.map(record => ({
         id: record.id,
