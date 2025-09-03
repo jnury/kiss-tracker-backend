@@ -155,6 +155,25 @@ const database = {
     }
   },
 
+  // Update destination
+  updateDestination: (trackingNumber, newDestination) => {
+    try {
+      const trackings = readJSONFile(TRACKING_FILE);
+      
+      if (!trackings[trackingNumber]) {
+        return false;
+      }
+      
+      trackings[trackingNumber].destination = newDestination;
+      trackings[trackingNumber].updated_at = new Date().toISOString();
+      
+      return writeJSONFile(TRACKING_FILE, trackings);
+    } catch (error) {
+      console.error('Error updating destination:', error);
+      throw error;
+    }
+  },
+
   // Get track records for a tracking
   getTrackRecords: (trackingNumber) => {
     try {
@@ -162,6 +181,30 @@ const database = {
       return records[trackingNumber] || [];
     } catch (error) {
       console.error('Error getting track records:', error);
+      throw error;
+    }
+  },
+
+  // Remove delivery records
+  removeDeliveryRecords: (trackingNumber) => {
+    try {
+      const records = readJSONFile(RECORDS_FILE);
+      
+      if (!records[trackingNumber]) {
+        return false;
+      }
+      
+      const originalLength = records[trackingNumber].length;
+      records[trackingNumber] = records[trackingNumber].filter(record => record.location !== 'Delivered');
+      const removed = originalLength !== records[trackingNumber].length;
+      
+      if (removed) {
+        writeJSONFile(RECORDS_FILE, records);
+      }
+      
+      return removed;
+    } catch (error) {
+      console.error('Error removing delivery records:', error);
       throw error;
     }
   },
@@ -215,9 +258,11 @@ module.exports = {
   createTracking: database.createTracking,
   getTracking: database.getTracking,
   updateEta: database.updateEta,
+  updateDestination: database.updateDestination,
   updateStatus: database.updateStatus,
   addTrackRecord: database.addTrackRecord,
   getTrackRecords: database.getTrackRecords,
+  removeDeliveryRecords: database.removeDeliveryRecords,
   getTrackingWithRecords: database.getTrackingWithRecords,
   verifyUpdateKey: database.verifyUpdateKey,
   getAllTrackings: database.getAllTrackings

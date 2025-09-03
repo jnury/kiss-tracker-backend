@@ -108,6 +108,19 @@ const database = {
     }
   },
 
+  updateDestination: async (trackingNumber, newDestination) => {
+    const client = await pool.connect();
+    try {
+      const res = await client.query(
+        'UPDATE trackings SET destination = $1, updated_at = now() WHERE tracking_number = $2 RETURNING id',
+        [newDestination, trackingNumber]
+      );
+      return res.rowCount > 0;
+    } finally {
+      client.release();
+    }
+  },
+
   updateStatus: async (trackingNumber, newStatus) => {
     const client = await pool.connect();
     try {
@@ -141,6 +154,19 @@ const database = {
     try {
       const res = await client.query('SELECT * FROM track_records WHERE tracking_number = $1 ORDER BY timestamp ASC', [trackingNumber]);
       return res.rows || [];
+    } finally {
+      client.release();
+    }
+  },
+
+  removeDeliveryRecords: async (trackingNumber) => {
+    const client = await pool.connect();
+    try {
+      const res = await client.query(
+        'DELETE FROM track_records WHERE tracking_number = $1 AND location = $2',
+        [trackingNumber, 'Delivered']
+      );
+      return res.rowCount > 0;
     } finally {
       client.release();
     }

@@ -340,6 +340,36 @@ app.post('/api/tracking/:trackingNumber/location', verifyUpdateKey, async (req, 
   }
 });
 
+// Update destination (requires authentication)
+app.put('/api/tracking/:trackingNumber/destination', verifyUpdateKey, async (req, res) => {
+  try {
+    const { trackingNumber } = req.params;
+    const { destination } = req.body;
+
+    console.log('Updating destination:', { trackingNumber, destination });
+
+    if (!destination) {
+      return res.status(400).json({ error: 'Destination is required' });
+    }
+
+    const success = await db.updateDestination(trackingNumber, destination);
+    if (!success) {
+      return res.status(404).json({ error: 'Tracking number not found' });
+    }
+
+    // Broadcast destination update to SSE clients
+    broadcastToTracking(trackingNumber, 'destination-change', {
+      destination
+    });
+
+    console.log('✅ Updated destination successfully');
+    res.json({ message: 'Destination updated successfully' });
+  } catch (error) {
+    console.error('Error updating destination:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // Update ETA (requires authentication)
 app.put('/api/tracking/:trackingNumber/eta', verifyUpdateKey, async (req, res) => {
   try {
@@ -395,6 +425,33 @@ app.put('/api/tracking/:trackingNumber/status', verifyUpdateKey, async (req, res
     const success = await db.updateStatus(trackingNumber, status);
     if (!success) {
       return res.status(404).json({ error: 'Tracking number not found' });
+    }
+
+    // If status is 'Delivered', automatically create a delivery record
+    if (status === 'Delivered') {
+      const tracking = await db.getTracking(trackingNumber);
+      if (tracking) {
+        const recordId = await db.addTrackRecord(tracking.id, trackingNumber, 'Delivered');
+        console.log('✅ Auto-created delivery record with ID:', recordId);
+        
+        // Broadcast location update for the delivery record
+        broadcastToTracking(trackingNumber, 'location-update', {
+          location: 'Delivered',
+          timestamp: new Date().toISOString(),
+          recordId
+        });
+      }
+    } else {
+      // If status is changed from Delivered to something else, remove delivery records
+      const success = await db.removeDeliveryRecords(trackingNumber);
+      if (success) {
+        console.log('✅ Removed delivery records for status change');
+        
+        // Broadcast removal to SSE clients
+        broadcastToTracking(trackingNumber, 'delivery-removed', {
+          trackingNumber
+        });
+      }
     }
 
     // Broadcast status update to SSE clients
