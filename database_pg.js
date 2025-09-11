@@ -38,6 +38,17 @@ const init = async () => {
       ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'Preparing';
     `);
 
+    // Add timezone and locale columns for creator preferences
+    await client.query(`
+      ALTER TABLE trackings 
+      ADD COLUMN IF NOT EXISTS creator_timezone TEXT DEFAULT 'Europe/Zurich';
+    `);
+
+    await client.query(`
+      ALTER TABLE trackings 
+      ADD COLUMN IF NOT EXISTS creator_locale TEXT DEFAULT 'en-CH';
+    `);
+
     await client.query(`
       CREATE TABLE IF NOT EXISTS track_records (
         id UUID PRIMARY KEY,
@@ -70,14 +81,14 @@ const generateUUID = () => {
 
 // Exposed API (async)
 const database = {
-  createTracking: async (trackingNumber, kissProvider, destination, eta, updateKey) => {
+  createTracking: async (trackingNumber, kissProvider, destination, eta, updateKey, creatorTimezone = 'Europe/Zurich', creatorLocale = 'en-CH') => {
     const id = generateUUID();
     const client = await pool.connect();
     try {
       const res = await client.query(
-        `INSERT INTO trackings (id, tracking_number, kiss_provider, destination, eta, status, update_key, created_at, updated_at)
-         VALUES ($1,$2,$3,$4,$5,$6,$7, now(), now()) RETURNING id`,
-        [id, trackingNumber, kissProvider, destination, eta, 'Preparing', updateKey]
+        `INSERT INTO trackings (id, tracking_number, kiss_provider, destination, eta, status, update_key, creator_timezone, creator_locale, created_at, updated_at)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9, now(), now()) RETURNING id`,
+        [id, trackingNumber, kissProvider, destination, eta, 'Preparing', updateKey, creatorTimezone, creatorLocale]
       );
       return res.rows[0].id;
     } finally {

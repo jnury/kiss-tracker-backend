@@ -121,8 +121,10 @@ function generateTrackingHTML(trackingData, req) {
   const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
   const logoUrl = `${frontendUrl}/logo_01.png`;
   
-  const formatEtaForMeta = (etaString) => {
-    return new Date(etaString).toLocaleDateString('en-US', {
+  const formatEtaForMeta = (etaString, creatorTimezone = 'Europe/Zurich', creatorLocale = 'en-CH') => {
+    const etaDate = new Date(etaString);
+    return etaDate.toLocaleDateString(creatorLocale, {
+      timeZone: creatorTimezone,
       weekday: 'long',
       month: 'long',
       day: 'numeric',
@@ -137,11 +139,11 @@ function generateTrackingHTML(trackingData, req) {
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Kiss Tracking #${trackingData.tracking_number} - Kiss Tracker</title>
-    <meta name="description" content="Track in real time your delivery planned for ${formatEtaForMeta(trackingData.eta)}" />
+    <meta name="description" content="Track in real time kisses delivered by ${trackingData.kiss_provider}" />
     
     <!-- Open Graph Meta Tags -->
-    <meta property="og:title" content="Kiss Delivery to ${trackingData.destination}" />
-    <meta property="og:description" content="Track in real time your delivery planned for ${formatEtaForMeta(trackingData.eta)}" />
+    <meta property="og:title" content="Track in real time kisses delivered by ${trackingData.kiss_provider}" />
+    <meta property="og:description" content="Your delivery is planned to happen in ${trackingData.destination} at ${formatEtaForMeta(trackingData.eta, trackingData.creator_timezone, trackingData.creator_locale)}" />
     <meta property="og:image" content="${logoUrl}" />
     <meta property="og:image:width" content="512" />
     <meta property="og:image:height" content="512" />
@@ -151,8 +153,8 @@ function generateTrackingHTML(trackingData, req) {
     
     <!-- Twitter Card Meta Tags -->
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="Kiss Delivery to ${trackingData.destination}" />
-    <meta name="twitter:description" content="Track in real time your delivery planned for ${formatEtaForMeta(trackingData.eta)}" />
+    <meta name="twitter:title" content="Track in real time kisses delivered by ${trackingData.kiss_provider}" />
+    <meta name="twitter:description" content="Your delivery is planned to happen in ${trackingData.destination} at ${formatEtaForMeta(trackingData.eta, trackingData.creator_timezone, trackingData.creator_locale)}" />
     <meta name="twitter:image" content="${logoUrl}" />
     
     <!-- Redirect to frontend -->
@@ -284,12 +286,14 @@ app.post('/api/tracking', async (req, res) => {
     console.log('=== CREATE TRACKING REQUEST ===');
     console.log('Request body:', JSON.stringify(req.body, null, 2));
     
-    const { kissProvider, destination, eta } = req.body;
+    const { kissProvider, destination, eta, creatorTimezone, creatorLocale } = req.body;
     
     console.log('Extracted values:');
     console.log('- kissProvider:', kissProvider);
     console.log('- destination:', destination);
     console.log('- eta:', eta);
+    console.log('- creatorTimezone:', creatorTimezone);
+    console.log('- creatorLocale:', creatorLocale);
     
     if (!kissProvider || !destination || !eta) {
       console.log('❌ Missing required fields');
@@ -315,7 +319,7 @@ app.post('/api/tracking', async (req, res) => {
     }
 
     // Save to database (eta is already UTC ISO string)
-  const trackingId = await db.createTracking(trackingNumber, kissProvider, destination, eta, updateKey);
+  const trackingId = await db.createTracking(trackingNumber, kissProvider, destination, eta, updateKey, creatorTimezone, creatorLocale);
   console.log('Created tracking with ID:', trackingId);
 
     const response = {
