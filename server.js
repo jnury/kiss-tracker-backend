@@ -45,10 +45,10 @@ function generateUpdateKey() {
   return uuidv4().substring(0, 16).toLowerCase();
 }
 
-// Helper function to generate share link
+// Helper function to generate share link (now points to backend for social media optimization)
 function generateShareLink(req, trackingNumber) {
-  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
-  return `${frontendUrl}/track/${trackingNumber}`;
+  const backendUrl = process.env.BACKEND_URL || 'http://localhost:8000';
+  return `${backendUrl}/${trackingNumber}`;
 }
 
 // Helper function to generate update link
@@ -115,9 +115,118 @@ function broadcastToTracking(trackingNumber, eventType, data) {
   }
 }
 
+// Helper function to generate HTML with dynamic meta tags for tracking pages
+function generateTrackingHTML(trackingData, req) {
+  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+  const logoUrl = `${frontendUrl}/logo_01.png`;
+  
+  const formatEtaForMeta = (etaString) => {
+    return new Date(etaString).toLocaleDateString('en-US', {
+      weekday: 'long',
+      month: 'long',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
+  return `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Kiss Tracking #${trackingData.tracking_number} - Kiss Tracker</title>
+    <meta name="description" content="Track in real time your delivery planned for ${formatEtaForMeta(trackingData.eta)}" />
+    
+    <!-- Open Graph Meta Tags -->
+    <meta property="og:title" content="Kiss Delivery to ${trackingData.destination}" />
+    <meta property="og:description" content="Track in real time your delivery planned for ${formatEtaForMeta(trackingData.eta)}" />
+    <meta property="og:image" content="${logoUrl}" />
+    <meta property="og:image:width" content="512" />
+    <meta property="og:image:height" content="512" />
+    <meta property="og:url" content="${req.protocol}://${req.get('Host')}/${trackingData.tracking_number}" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Kiss Tracker" />
+    
+    <!-- Twitter Card Meta Tags -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Kiss Delivery to ${trackingData.destination}" />
+    <meta name="twitter:description" content="Track in real time your delivery planned for ${formatEtaForMeta(trackingData.eta)}" />
+    <meta name="twitter:image" content="${logoUrl}" />
+    
+    <!-- Redirect to frontend -->
+    <script>
+      window.location.href = '${frontendUrl}/track/${trackingData.tracking_number}';
+    </script>
+    <meta http-equiv="refresh" content="0; url=${frontendUrl}/track/${trackingData.tracking_number}">
+  </head>
+  <body>
+    <div style="text-align: center; padding: 50px; font-family: Arial, sans-serif;">
+      <h1>Redirecting to Kiss Tracker...</h1>
+      <p>If you are not redirected automatically, <a href="${frontendUrl}/track/${trackingData.tracking_number}">click here</a>.</p>
+    </div>
+  </body>
+</html>`;
+}
+
 // Routes
 app.get('/', (req, res) => {
   res.json({ message: '😘 Kiss Tracker API is running' });
+});
+
+// Route to serve tracking page HTML with dynamic meta tags (for social media crawlers)
+// Short URL format: /:trackingNumber (e.g., /D13EB063)
+app.get('/:trackingNumber([A-Z0-9]{8})', async (req, res) => {
+  try {
+    const { trackingNumber } = req.params;
+    console.log('Serving HTML for tracking page (short URL):', trackingNumber);
+    
+    const trackingWithRecords = await db.getTrackingWithRecords(trackingNumber);
+
+    if (!trackingWithRecords) {
+      // Redirect to frontend for 404 handling
+      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+      return res.redirect(`${frontendUrl}/track/${trackingNumber}`);
+    }
+
+    // Generate HTML with dynamic meta tags
+    const html = generateTrackingHTML(trackingWithRecords, req);
+    
+    res.setHeader('Content-Type', 'text/html');
+    res.send(html);
+  } catch (error) {
+    console.error('Error serving tracking HTML:', error);
+    // Fallback to frontend redirect
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+    res.redirect(`${frontendUrl}/track/${req.params.trackingNumber}`);
+  }
+});
+
+// Keep the old /track/:trackingNumber route for backward compatibility
+app.get('/track/:trackingNumber', async (req, res) => {
+  try {
+    const { trackingNumber } = req.params;
+    console.log('Serving HTML for tracking page (legacy URL):', trackingNumber);
+    
+    const trackingWithRecords = await db.getTrackingWithRecords(trackingNumber);
+
+    if (!trackingWithRecords) {
+      // Redirect to frontend for 404 handling
+      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+      return res.redirect(`${frontendUrl}/track/${trackingNumber}`);
+    }
+
+    // Generate HTML with dynamic meta tags
+    const html = generateTrackingHTML(trackingWithRecords, req);
+    
+    res.setHeader('Content-Type', 'text/html');
+    res.send(html);
+  } catch (error) {
+    console.error('Error serving tracking HTML:', error);
+    // Fallback to frontend redirect
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+    res.redirect(`${frontendUrl}/track/${req.params.trackingNumber}`);
+  }
 });
 
 // SSE endpoint for real-time tracking updates
