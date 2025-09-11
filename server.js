@@ -45,10 +45,11 @@ function generateUpdateKey() {
   return uuidv4().substring(0, 16).toLowerCase();
 }
 
-// Helper function to generate share link (now points to backend for social media optimization)
+// Helper function to generate share link (now points to share domain for social media optimization)
 function generateShareLink(req, trackingNumber) {
-  const backendUrl = process.env.BACKEND_URL || 'http://localhost:8000';
-  return `${backendUrl}/${trackingNumber}`;
+  // Use SHARE_URL for production (track.kisstracking.com) or fall back to backend URL
+  const shareUrl = process.env.SHARE_URL || process.env.BACKEND_URL || 'http://localhost:8000';
+  return `${shareUrl}/${trackingNumber}`;
 }
 
 // Helper function to generate update link
