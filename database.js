@@ -54,7 +54,7 @@ const writeJSONFile = (filePath, data) => {
 // Database operations
 const database = {
   // Create tracking
-  createTracking: (trackingNumber, kissProvider, destination, eta, updateKey, creatorTimezone = 'Europe/Zurich', creatorLocale = 'en-CH') => {
+  createTracking: (trackingNumber, kissProvider, destination, eta, updateKey) => {
     try {
       const trackings = readJSONFile(TRACKING_FILE);
       
@@ -66,8 +66,6 @@ const database = {
         eta,
         status: 'Preparing',
         update_key: updateKey,
-        creator_timezone: creatorTimezone,
-        creator_locale: creatorLocale,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       };

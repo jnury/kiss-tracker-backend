@@ -81,14 +81,14 @@ const generateUUID = () => {
 
 // Exposed API (async)
 const database = {
-  createTracking: async (trackingNumber, kissProvider, destination, eta, updateKey, creatorTimezone = 'Europe/Zurich', creatorLocale = 'en-CH') => {
+  createTracking: async (trackingNumber, kissProvider, destination, eta, updateKey) => {
     const id = generateUUID();
     const client = await pool.connect();
     try {
       const res = await client.query(
-        `INSERT INTO trackings (id, tracking_number, kiss_provider, destination, eta, status, update_key, creator_timezone, creator_locale, created_at, updated_at)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9, now(), now()) RETURNING id`,
-        [id, trackingNumber, kissProvider, destination, eta, 'Preparing', updateKey, creatorTimezone, creatorLocale]
+        `INSERT INTO trackings (id, tracking_number, kiss_provider, destination, eta, status, update_key, created_at, updated_at)
+         VALUES ($1,$2,$3,$4,$5,$6,$7, now(), now()) RETURNING id`,
+        [id, trackingNumber, kissProvider, destination, eta, 'Preparing', updateKey]
       );
       return res.rows[0].id;
     } finally {
