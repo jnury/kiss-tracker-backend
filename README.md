@@ -46,6 +46,7 @@ POST /api/tracking/:trackingNumber/location?key=SECRET   # Add location update
 PUT /api/tracking/:trackingNumber/eta?key=SECRET         # Update ETA
 PUT /api/tracking/:trackingNumber/status?key=SECRET      # Update delivery status
 PUT /api/tracking/:trackingNumber/destination?key=SECRET # Update destination
+POST /api/tracking/batch                                 # Batch endpoint for multiple trackings
 ```
 
 ## Real-time Features
@@ -257,6 +258,18 @@ curl -X POST http://localhost:8000/api/tracking \
 curl -X POST "http://localhost:8000/api/tracking/KISS123456/location?key=abc123def456" \
   -H "Content-Type: application/json" \
   -d '{"location": "Left the flower shop"}'
+```
+
+### Batch Load Multiple Trackings
+```bash
+curl -X POST http://localhost:8000/api/tracking/batch \
+  -H "Content-Type: application/json" \
+  -d '{
+    "trackings": [
+      {"trackingNumber": "KISS123456", "updateKey": "abc123def456"},
+      {"trackingNumber": "KISS789012", "updateKey": "ghi789jkl012"}
+    ]
+  }'
 ```
 
 ### Get Public Tracking Info

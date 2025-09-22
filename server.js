@@ -406,6 +406,67 @@ app.put('/api/tracking/:trackingNumber/eta', verifyUpdateKey, async (req, res) =
   }
 });
 
+// Batch fetch multiple trackings (for MyTrackings page)
+app.post('/api/tracking/batch', async (req, res) => {
+  try {
+    const { trackings } = req.body; // Array of { trackingNumber, updateKey }
+
+    console.log('Batch fetching trackings:', trackings?.length || 0);
+
+    if (!trackings || !Array.isArray(trackings)) {
+      return res.status(400).json({ error: 'trackings array is required' });
+    }
+
+    const results = [];
+
+    for (const { trackingNumber, updateKey } of trackings) {
+      try {
+        // Verify update key for each tracking
+        const isValid = await db.verifyUpdateKey(trackingNumber, updateKey);
+        if (!isValid) {
+          results.push({
+            trackingNumber,
+            error: 'Invalid update key or tracking not found'
+          });
+          continue;
+        }
+
+        const trackingWithRecords = await db.getTrackingWithRecords(trackingNumber);
+        if (trackingWithRecords) {
+          results.push({
+            trackingNumber: trackingWithRecords.tracking_number,
+            kissProvider: trackingWithRecords.kiss_provider,
+            destination: trackingWithRecords.destination,
+            eta: trackingWithRecords.eta,
+            status: trackingWithRecords.status,
+            recordCount: trackingWithRecords.records.length,
+            lastUpdate: trackingWithRecords.records.length > 0
+              ? trackingWithRecords.records[trackingWithRecords.records.length - 1].timestamp
+              : trackingWithRecords.created_at
+          });
+        } else {
+          results.push({
+            trackingNumber,
+            error: 'Tracking not found'
+          });
+        }
+      } catch (error) {
+        console.error(`Error fetching tracking ${trackingNumber}:`, error);
+        results.push({
+          trackingNumber,
+          error: 'Internal error'
+        });
+      }
+    }
+
+    console.log('✅ Batch fetch completed:', results.length, 'results');
+    res.json({ trackings: results });
+  } catch (error) {
+    console.error('Error in batch fetch:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // Update status (requires authentication)
 app.put('/api/tracking/:trackingNumber/status', verifyUpdateKey, async (req, res) => {
   try {
@@ -434,7 +495,7 @@ app.put('/api/tracking/:trackingNumber/status', verifyUpdateKey, async (req, res
       if (tracking) {
         const recordId = await db.addTrackRecord(tracking.id, trackingNumber, 'Delivered');
         console.log('✅ Auto-created delivery record with ID:', recordId);
-        
+
         // Broadcast location update for the delivery record
         broadcastToTracking(trackingNumber, 'location-update', {
           location: 'Delivered',
@@ -447,7 +508,7 @@ app.put('/api/tracking/:trackingNumber/status', verifyUpdateKey, async (req, res
       const success = await db.removeDeliveryRecords(trackingNumber);
       if (success) {
         console.log('✅ Removed delivery records for status change');
-        
+
         // Broadcast removal to SSE clients
         broadcastToTracking(trackingNumber, 'delivery-removed', {
           trackingNumber
